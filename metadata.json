@@ -1,0 +1,6 @@
+{
+  "name": "Sound Harvester",
+  "description": "Spotify Playlist to MP3 Downloader web application with dark Spotify aesthetics, metadata preview, individual/batch MP3 downloads, synced lyrics, and saved playlist dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

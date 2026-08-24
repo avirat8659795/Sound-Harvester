@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --accent-color: #1DB954;
+  --accent-rgb: 29, 185, 84;
+  --accent-glow: rgba(29, 185, 84, 0.45);
+  --accent-glow-subtle: rgba(29, 185, 84, 0.18);
+}
+
+@layer base {
+  body {
+    background-color: #121212;
+    color: #ffffff;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Accent utilities for dynamic theme switching */
+.text-accent {
+  color: var(--accent-color);
+}
+
+.bg-accent {
+  background-color: var(--accent-color);
+}
+
+.border-accent {
+  border-color: var(--accent-color);
+}
+
+.shadow-accent {
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.shadow-accent-subtle {
+  box-shadow: 0 0 12px var(--accent-glow-subtle);
+}
+
+/* Custom Spotify Dark Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #121212;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #282828;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3e3e3e;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
