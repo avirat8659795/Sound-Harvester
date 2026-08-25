@@ -214,7 +214,22 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         }
       }
 
-      if (vId) {
+      if (isMobile) {
+        // On mobile & standalone PWA: Route through native HTML5 audio stream for continuous background playback and Android / Redmi notification shade controls
+        setUseHtmlAudio(true);
+        if (vId) setResolvedVideoId(vId);
+
+        const streamUrl = track!.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
+
+        if (htmlAudioRef.current) {
+          htmlAudioRef.current.src = streamUrl;
+          htmlAudioRef.current.currentTime = 0;
+          if (isPlaying) {
+            setIsBuffering(true);
+            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
+          }
+        }
+      } else if (vId) {
         setResolvedVideoId(vId);
         setUseHtmlAudio(false);
 
@@ -232,9 +247,9 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           }
         }
       } else {
-        // Fallback to HTML5 audio stream only if no video ID found
+        // Fallback to HTML5 audio stream
         setUseHtmlAudio(true);
-        const streamUrl = `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
+        const streamUrl = track!.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
         if (htmlAudioRef.current) {
           htmlAudioRef.current.src = streamUrl;
           htmlAudioRef.current.currentTime = 0;
@@ -251,7 +266,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [track?.id, isYtReady]);
+  }, [track?.id, isYtReady, isMobile]);
 
   // Sync Play / Pause state with active engine
   useEffect(() => {
@@ -275,7 +290,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         const currentSrc = htmlAudioRef.current.src;
         if (!currentSrc || currentSrc === window.location.href || currentSrc.endsWith('/')) {
           const initialDur = Math.max(30, Math.floor((track.durationMs || 180000) / 1000));
-          htmlAudioRef.current.src = `/api/audio/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&videoId=${encodeURIComponent(track.youtubeVideoId || resolvedVideoId || '')}&duration=${initialDur}&isrc=${encodeURIComponent(track.isrc || '')}`;
+          htmlAudioRef.current.src = track.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track.isrc || '')}`;
         }
         setIsBuffering(true);
         htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch((err) => {
@@ -324,12 +339,18 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
       };
 
       safeSetAction('play', () => {
+        if (htmlAudioRef.current) {
+          htmlAudioRef.current.play().catch(() => {});
+        }
         if (!isPlayingRef.current) {
           onTogglePlayRef.current();
         }
       });
 
       safeSetAction('pause', () => {
+        if (htmlAudioRef.current) {
+          htmlAudioRef.current.pause();
+        }
         if (isPlayingRef.current) {
           onTogglePlayRef.current();
         }
