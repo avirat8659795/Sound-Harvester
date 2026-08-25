@@ -216,7 +216,19 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
       if (!isMounted) return;
 
-      if (vId) {
+      if (isMobile) {
+        // On mobile & standalone PWA, always prioritize native HTML5 audio stream for background and lock-screen controls
+        setUseHtmlAudio(true);
+        if (vId) setResolvedVideoId(vId);
+        if (htmlAudioRef.current) {
+          htmlAudioRef.current.src = audioStreamUrl;
+          htmlAudioRef.current.currentTime = 0;
+          if (isPlaying) {
+            setIsBuffering(true);
+            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
+          }
+        }
+      } else if (vId) {
         setResolvedVideoId(vId);
         setUseHtmlAudio(false);
 
@@ -240,7 +252,8 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           htmlAudioRef.current.src = audioStreamUrl;
           htmlAudioRef.current.currentTime = 0;
           if (isPlaying) {
-            htmlAudioRef.current.play().catch(() => {});
+            setIsBuffering(true);
+            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
           }
         }
       }
@@ -251,7 +264,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [track?.id, isYtReady]);
+  }, [track?.id, isYtReady, isMobile]);
 
   // Sync Play / Pause state with active engine
   useEffect(() => {
@@ -272,9 +285,19 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
       }
     } else if (useHtmlAudio && htmlAudioRef.current) {
       if (isPlaying) {
-        htmlAudioRef.current.play().catch(() => {});
+        const currentSrc = htmlAudioRef.current.src;
+        if (!currentSrc || currentSrc === window.location.href || currentSrc.endsWith('/')) {
+          const initialDur = Math.max(30, Math.floor((track.durationMs || 180000) / 1000));
+          htmlAudioRef.current.src = track.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track.isrc || '')}`;
+        }
+        setIsBuffering(true);
+        htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch((err) => {
+          console.warn('Audio playback error:', err);
+          setIsBuffering(false);
+        });
       } else {
         htmlAudioRef.current.pause();
+        setIsBuffering(false);
       }
     }
   }, [isPlaying, isYtReady, useHtmlAudio]);
@@ -508,7 +531,12 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         ref={htmlAudioRef}
         preload="auto"
         playsInline
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
+        onCanPlay={() => setIsBuffering(false)}
+        onError={() => setIsBuffering(false)}
         onEnded={() => {
+          setIsBuffering(false);
           if (repeatModeRef.current === 'one' && htmlAudioRef.current) {
             htmlAudioRef.current.currentTime = 0;
             htmlAudioRef.current.play().catch(() => {});
@@ -517,11 +545,13 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           }
         }}
         onPlay={() => {
+          setIsBuffering(false);
           if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'playing';
           }
         }}
         onPause={() => {
+          setIsBuffering(false);
           if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'paused';
           }

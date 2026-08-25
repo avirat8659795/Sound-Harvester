@@ -1,7 +1,21 @@
 // SoundHarvest Service Worker - Resilient Network-First PWA Strategy
-const CACHE_NAME = 'soundharvest-v4';
+const CACHE_NAME = 'soundharvest-v5';
+const PRECACHE_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icon-192.svg',
+  '/icon-512.svg'
+];
 
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.debug('Pre-cache note:', err);
+      });
+    })
+  );
   self.skipWaiting();
 });
 
@@ -22,7 +36,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = event.request.url;
 
-  // Never intercept API endpoints, audio streams, Vite dev modules, or source files
+  // Never intercept API endpoints, audio stream pipes, dev modules, or YouTube player
   if (
     url.includes('/api/') ||
     url.includes('/src/') ||
@@ -38,15 +52,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-First: Always attempt to fetch the latest version from server
+  // Network-First Strategy with Cache Fallback for Standalone App
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        if (
-          networkResponse &&
-          networkResponse.status === 200 &&
-          networkResponse.type === 'basic'
-        ) {
+        if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 0)) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache).catch(() => {});
@@ -55,7 +65,6 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(async () => {
-        // Fallback to cache when offline
         const cached = await caches.match(event.request);
         if (cached) return cached;
         if (event.request.mode === 'navigate' || event.request.destination === 'document') {
@@ -66,4 +75,5 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
 
