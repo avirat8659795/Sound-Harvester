@@ -1,8 +1,7 @@
 import React from 'react';
-import { Server, ListMusic, Settings, Smartphone } from 'lucide-react';
+import { ListMusic, Settings, Smartphone } from 'lucide-react';
 
 interface NavbarProps {
-  onOpenDeployGuide: () => void;
   onOpenMyPlaylists: () => void;
   onOpenSettings: () => void;
   onOpenInstallApp?: () => void;
@@ -12,7 +11,6 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  onOpenDeployGuide,
   onOpenMyPlaylists,
   onOpenSettings,
   onOpenInstallApp,
@@ -71,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Action Controls & DevOps Links */}
+        {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
           {/* Install on Phone (PWA/APK) Button */}
           {onOpenInstallApp && (
@@ -136,16 +134,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               style={{ color: themeColor }}
             />
             <span className="hidden md:inline">Settings</span>
-          </button>
-
-          {/* Render & Docker Deploy Guide */}
-          <button
-            onClick={onOpenDeployGuide}
-            className="flex items-center gap-1.5 sm:gap-2 bg-[#181818] hover:bg-[#242424] active:scale-95 text-gray-300 hover:text-white border border-[#282828] hover:border-[#383838] px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-sm min-h-[36px]"
-            title="Step-by-step instructions to deploy to Render via Docker"
-          >
-            <Server className="w-4 h-4 shrink-0" style={{ color: themeColor }} />
-            <span className="hidden lg:inline">Deploy Guide</span>
           </button>
         </div>
       </div>

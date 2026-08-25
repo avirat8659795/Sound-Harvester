@@ -17,7 +17,6 @@ import { PlaylistCard } from './components/PlaylistCard';
 import { ActionBar } from './components/ActionBar';
 import { TrackList } from './components/TrackList';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
-import { RenderDeployGuide } from './components/RenderDeployGuide';
 import { TagInspectorModal } from './components/TagInspectorModal';
 import { MyPlaylistsModal } from './components/MyPlaylistsModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -79,7 +78,6 @@ export default function App() {
   currentPlayingTrackRef.current = currentPlayingTrack;
 
   // Modals
-  const [isDeployGuideOpen, setIsDeployGuideOpen] = useState(false);
   const [isMyPlaylistsOpen, setIsMyPlaylistsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -395,7 +393,6 @@ export default function App() {
     <div className={`min-h-screen bg-[#121212] text-[#FFFFFF] font-sans flex flex-col ${currentPlayingTrack ? 'pb-32 sm:pb-36' : 'pb-12'}`}>
       {/* Top Navbar */}
       <Navbar
-        onOpenDeployGuide={() => setIsDeployGuideOpen(true)}
         onOpenMyPlaylists={() => setIsMyPlaylistsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenInstallApp={() => setIsInstallModalOpen(true)}
@@ -475,12 +472,6 @@ export default function App() {
         }}
         forceOpenVideo={forceOpenVideo}
         themeColor={settings.themeColor}
-      />
-
-      {/* Render & Docker DevOps Deploy Guide Modal */}
-      <RenderDeployGuide
-        isOpen={isDeployGuideOpen}
-        onClose={() => setIsDeployGuideOpen(false)}
       />
 
       {/* My Playlists Management Dashboard Modal */}
