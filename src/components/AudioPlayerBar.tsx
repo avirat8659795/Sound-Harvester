@@ -63,7 +63,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   const [isShuffle, setIsShuffle] = useState(false);
 
   // Detect mobile / touch devices for native background audio prioritization
-  const isMobile = typeof window !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0));
+  const isMobile = typeof window !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '') || ((navigator.maxTouchPoints || 0) > 0));
 
   // Background Audio Mode: routes audio through native HTML5 audio stream for continuous lock-screen & notification bar playback
   const [backgroundAudioMode, setBackgroundAudioMode] = useState(true);
@@ -281,41 +281,51 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
   // Setup Standard Web MediaSession API (Lock Screen & Notification Shade Controller)
   useEffect(() => {
-    if (!('mediaSession' in navigator) || !track) return;
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator) || !navigator.mediaSession || !track) return;
 
     try {
       // 1. Set Track Metadata with multi-resolution artwork
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: track.title,
-        artist: track.artist,
-        album: track.album || 'SoundHarvest Playlist',
-        artwork: [
-          { src: track.coverUrl, sizes: '96x96', type: 'image/jpeg' },
-          { src: track.coverUrl, sizes: '128x128', type: 'image/jpeg' },
-          { src: track.coverUrl, sizes: '192x192', type: 'image/jpeg' },
-          { src: track.coverUrl, sizes: '256x256', type: 'image/jpeg' },
-          { src: track.coverUrl, sizes: '384x384', type: 'image/jpeg' },
-          { src: track.coverUrl, sizes: '512x512', type: 'image/jpeg' }
-        ]
-      });
+      if (typeof MediaMetadata !== 'undefined') {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title,
+          artist: track.artist,
+          album: track.album || 'SoundHarvest Playlist',
+          artwork: [
+            { src: track.coverUrl, sizes: '96x96', type: 'image/jpeg' },
+            { src: track.coverUrl, sizes: '128x128', type: 'image/jpeg' },
+            { src: track.coverUrl, sizes: '192x192', type: 'image/jpeg' },
+            { src: track.coverUrl, sizes: '256x256', type: 'image/jpeg' },
+            { src: track.coverUrl, sizes: '384x384', type: 'image/jpeg' },
+            { src: track.coverUrl, sizes: '512x512', type: 'image/jpeg' }
+          ]
+        });
+      }
 
       // 2. Set Playback State
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
-      // 3. Register Action Handlers for Lock Screen & Notification Bar
-      navigator.mediaSession.setActionHandler('play', () => {
+      // 3. Register Action Handlers safely for Lock Screen & Notification Bar
+      const safeSetAction = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
+        try {
+          navigator.mediaSession.setActionHandler(action, handler);
+        } catch {
+          // Action not supported on this device/browser version
+        }
+      };
+
+      safeSetAction('play', () => {
         if (!isPlayingRef.current) {
           onTogglePlayRef.current();
         }
       });
 
-      navigator.mediaSession.setActionHandler('pause', () => {
+      safeSetAction('pause', () => {
         if (isPlayingRef.current) {
           onTogglePlayRef.current();
         }
       });
 
-      navigator.mediaSession.setActionHandler('previoustrack', () => {
+      safeSetAction('previoustrack', () => {
         if (currentTimeSecRef.current > 2.5) {
           handleSeekDirect(0);
         } else {
@@ -323,27 +333,27 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         }
       });
 
-      navigator.mediaSession.setActionHandler('nexttrack', () => {
+      safeSetAction('nexttrack', () => {
         onNextTrackRef.current(isShuffleRef.current, repeatModeRef.current === 'off');
       });
 
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
+      safeSetAction('seekto', (details) => {
         if (details.seekTime !== undefined && details.seekTime !== null) {
           handleSeekDirect(details.seekTime);
         }
       });
 
-      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+      safeSetAction('seekbackward', (details) => {
         const skipTime = details.seekOffset || 10;
         handleSeekDirect(Math.max(0, currentTimeSecRef.current - skipTime));
       });
 
-      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+      safeSetAction('seekforward', (details) => {
         const skipTime = details.seekOffset || 10;
         handleSeekDirect(Math.min(totalDurationSecRef.current, currentTimeSecRef.current + skipTime));
       });
 
-      navigator.mediaSession.setActionHandler('stop', () => {
+      safeSetAction('stop', () => {
         if (isPlayingRef.current) {
           onTogglePlayRef.current();
         }

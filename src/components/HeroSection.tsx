@@ -31,13 +31,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   const handlePaste = async () => {
     try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setUrlInput(text);
-        onClearError();
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          setUrlInput(text);
+          onClearError();
+        }
       }
     } catch {
-      // Clipboard permissions
+      // Clipboard permissions or insecure context
     }
   };
 

@@ -142,7 +142,20 @@ export const MyPlaylistsModal: React.FC<MyPlaylistsModalProps> = ({
   // Copy URL to clipboard
   const handleCopyUrl = (id: string, url: string) => {
     if (!url) return;
-    navigator.clipboard.writeText(url);
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).catch(() => {});
+    } else if (typeof document !== 'undefined') {
+      try {
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      } catch {
+        // ignore
+      }
+    }
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
   };

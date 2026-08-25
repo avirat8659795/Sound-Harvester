@@ -12,7 +12,20 @@ export const RenderDeployGuide: React.FC<RenderDeployGuideProps> = ({ isOpen, on
   if (!isOpen) return null;
 
   const copyCode = (text: string, index: number) => {
-    navigator.clipboard.writeText(text);
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    } else if (typeof document !== 'undefined') {
+      try {
+        const input = document.createElement('textarea');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      } catch {
+        // ignore
+      }
+    }
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };

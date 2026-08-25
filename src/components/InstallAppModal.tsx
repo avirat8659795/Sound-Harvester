@@ -34,15 +34,20 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    // Detect if already running in standalone mode (PWA installed)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true;
-    if (isStandalone) {
-      setIsInstalled(true);
+    try {
+      // Detect if already running in standalone mode (PWA installed)
+      const isStandalone =
+        (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        (typeof window !== 'undefined' && (window.navigator as any)?.standalone === true);
+      if (isStandalone) {
+        setIsInstalled(true);
+      }
+    } catch {
+      // ignore
     }
 
     // Auto-detect OS
-    const userAgent = navigator.userAgent.toLowerCase();
+    const userAgent = typeof navigator !== 'undefined' ? (navigator.userAgent || '').toLowerCase() : '';
     if (/iphone|ipad|ipod/.test(userAgent)) {
       setActiveTab('ios');
     } else {
@@ -81,7 +86,21 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.origin);
+    const textToCopy = typeof window !== 'undefined' ? window.location.origin : '';
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textToCopy).catch(() => {});
+    } else if (typeof document !== 'undefined') {
+      try {
+        const input = document.createElement('input');
+        input.value = textToCopy;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      } catch {
+        // ignore
+      }
+    }
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };

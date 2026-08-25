@@ -24,6 +24,16 @@
   </head>
   <body class="bg-[#121212] text-white">
     <div id="root"></div>
+    <script>
+      // Graceful error catcher for mobile browsers
+      window.addEventListener('error', function(e) {
+        var root = document.getElementById('root');
+        if (root && root.children.length === 0) {
+          console.error('Mobile script load error:', e);
+          root.innerHTML = '<div style="min-height:100vh;background:#121212;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif;"><div style="width:52px;height:52px;border-radius:14px;background:rgba(29,185,84,0.2);border:1px solid rgba(29,185,84,0.4);display:flex;align-items:center;justify-content:center;margin-bottom:16px;"><span style="font-size:22px;font-weight:900;color:#1DB954;">H</span></div><h2 style="font-size:18px;font-weight:bold;margin-bottom:8px;">Sound Harvester</h2><p style="font-size:13px;color:#a0a0a0;max-width:300px;margin-bottom:20px;">Unable to initialize mobile interface. Tap below to clear cache and reload.</p><button onclick="if(window.caches){caches.keys().then(function(k){k.forEach(function(n){caches.delete(n);});});}window.location.reload(true);" style="background:#1DB954;color:#000;font-weight:bold;padding:10px 22px;border-radius:9999px;border:none;font-size:13px;cursor:pointer;">Clear Cache & Reload</button></div>';
+        }
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
