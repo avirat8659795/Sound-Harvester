@@ -214,24 +214,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         }
       }
 
-      if (!isMounted) return;
-
-      if (isMobile) {
-        // On mobile & standalone PWA, route audio through native HTML5 audio stream for continuous lock-screen & notification bar playback
-        setUseHtmlAudio(true);
-        if (vId) setResolvedVideoId(vId);
-
-        const streamUrl = `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&videoId=${encodeURIComponent(vId || '')}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
-
-        if (htmlAudioRef.current) {
-          htmlAudioRef.current.src = streamUrl;
-          htmlAudioRef.current.currentTime = 0;
-          if (isPlaying) {
-            setIsBuffering(true);
-            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
-          }
-        }
-      } else if (vId) {
+      if (vId) {
         setResolvedVideoId(vId);
         setUseHtmlAudio(false);
 
@@ -249,9 +232,9 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           }
         }
       } else {
-        // Fallback to HTML5 audio stream
+        // Fallback to HTML5 audio stream only if no video ID found
         setUseHtmlAudio(true);
-        const streamUrl = `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&videoId=${encodeURIComponent(vId || '')}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
+        const streamUrl = `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
         if (htmlAudioRef.current) {
           htmlAudioRef.current.src = streamUrl;
           htmlAudioRef.current.currentTime = 0;
@@ -268,7 +251,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [track?.id, isYtReady, isMobile]);
+  }, [track?.id, isYtReady]);
 
   // Sync Play / Pause state with active engine
   useEffect(() => {
@@ -518,6 +501,32 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     else setRepeatMode('off');
   };
 
+  // Immediate User Gesture Play / Pause Handler for Instant Mobile & Desktop Response
+  const handleTogglePlay = () => {
+    if (!isPlaying) {
+      if (!useHtmlAudio && ytPlayerRef.current && isYtReady) {
+        try {
+          ytPlayerRef.current.playVideo();
+        } catch (e) {
+          console.warn('YT direct play on gesture:', e);
+        }
+      } else if (useHtmlAudio && htmlAudioRef.current) {
+        htmlAudioRef.current.play().catch(() => {});
+      }
+    } else {
+      if (!useHtmlAudio && ytPlayerRef.current && isYtReady) {
+        try {
+          ytPlayerRef.current.pauseVideo();
+        } catch (e) {
+          console.warn('YT direct pause on gesture:', e);
+        }
+      } else if (useHtmlAudio && htmlAudioRef.current) {
+        htmlAudioRef.current.pause();
+      }
+    }
+    onTogglePlay();
+  };
+
   if (!track) return null;
 
   return (
@@ -655,7 +664,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
               {/* Play / Pause Main Button */}
               <button
-                onClick={onTogglePlay}
+                onClick={handleTogglePlay}
                 className="w-10 h-10 rounded-full text-black flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
                 style={{
                   backgroundColor: themeColor,
@@ -751,7 +760,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
                 {/* Main Play / Pause Button */}
                 <button
-                  onClick={onTogglePlay}
+                  onClick={handleTogglePlay}
                   className="w-9 h-9 rounded-full bg-white hover:scale-105 active:scale-95 text-black flex items-center justify-center transition-all shadow-lg cursor-pointer"
                   title={isPlaying ? 'Pause' : 'Play Track'}
                 >
