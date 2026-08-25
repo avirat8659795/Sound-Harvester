@@ -216,7 +216,22 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
       if (!isMounted) return;
 
-      if (vId) {
+      if (isMobile) {
+        // On mobile & standalone PWA, route audio through native HTML5 audio stream for continuous lock-screen & notification bar playback
+        setUseHtmlAudio(true);
+        if (vId) setResolvedVideoId(vId);
+
+        const streamUrl = `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&videoId=${encodeURIComponent(vId || '')}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
+
+        if (htmlAudioRef.current) {
+          htmlAudioRef.current.src = streamUrl;
+          htmlAudioRef.current.currentTime = 0;
+          if (isPlaying) {
+            setIsBuffering(true);
+            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
+          }
+        }
+      } else if (vId) {
         setResolvedVideoId(vId);
         setUseHtmlAudio(false);
 
@@ -234,10 +249,11 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           }
         }
       } else {
-        // Fallback to HTML5 audio stream only if no video ID found
+        // Fallback to HTML5 audio stream
         setUseHtmlAudio(true);
+        const streamUrl = `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&videoId=${encodeURIComponent(vId || '')}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
         if (htmlAudioRef.current) {
-          htmlAudioRef.current.src = audioStreamUrl;
+          htmlAudioRef.current.src = streamUrl;
           htmlAudioRef.current.currentTime = 0;
           if (isPlaying) {
             setIsBuffering(true);
@@ -252,7 +268,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [track?.id, isYtReady]);
+  }, [track?.id, isYtReady, isMobile]);
 
   // Sync Play / Pause state with active engine
   useEffect(() => {
@@ -276,7 +292,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         const currentSrc = htmlAudioRef.current.src;
         if (!currentSrc || currentSrc === window.location.href || currentSrc.endsWith('/')) {
           const initialDur = Math.max(30, Math.floor((track.durationMs || 180000) / 1000));
-          htmlAudioRef.current.src = track.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track.isrc || '')}`;
+          htmlAudioRef.current.src = `/api/audio/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&videoId=${encodeURIComponent(track.youtubeVideoId || resolvedVideoId || '')}&duration=${initialDur}&isrc=${encodeURIComponent(track.isrc || '')}`;
         }
         setIsBuffering(true);
         htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch((err) => {
@@ -523,6 +539,16 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         ref={htmlAudioRef}
         preload="auto"
         playsInline
+        onTimeUpdate={() => {
+          if (htmlAudioRef.current && useHtmlAudio) {
+            const current = htmlAudioRef.current.currentTime || 0;
+            const dur = htmlAudioRef.current.duration || totalDurationSec || 180;
+            if (!isNaN(current) && current >= 0) {
+              setCurrentTimeSec(current);
+              setProgressPercent(dur > 0 ? Math.min(100, (current / dur) * 100) : 0);
+            }
+          }
+        }}
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
         onCanPlay={() => setIsBuffering(false)}

@@ -8,6 +8,10 @@ import * as archiverModule from 'archiver';
 const archiver = (archiverModule as any).default || archiverModule;
 import * as YouTubeModule from 'youtube-sr';
 const YouTube: any = (YouTubeModule as any).default || YouTubeModule;
+import * as ytdlModule from '@distube/ytdl-core';
+const ytdl: any = (ytdlModule as any).default || ytdlModule;
+import * as playDlModule from 'play-dl';
+const play: any = (playDlModule as any).default || playDlModule;
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -1592,12 +1596,71 @@ app.get('/api/audio/stream', async (req: Request, res: Response) => {
   const title = (req.query.title as string) || '';
   const artist = (req.query.artist as string) || '';
   const isrc = (req.query.isrc as string) || '';
+  let videoId = (req.query.videoId as string) || '';
   const durationSec = parseInt((req.query.duration as string) || '210', 10);
 
-  if (!title) {
-    return res.status(400).send('Missing title parameter');
+  if (!title && !videoId) {
+    return res.status(400).send('Missing title or videoId parameter');
   }
 
+  // 1. If videoId provided or findable on YouTube, stream authentic original audio
+  if (!videoId && title) {
+    try {
+      const cleanTitle = title.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
+      const cleanArtist = artist.split(',')[0].trim();
+      const query = `${cleanArtist} ${cleanTitle} official audio`;
+      const searchRes = await searchYouTubeSafely(query, 3);
+      if (searchRes && searchRes.length > 0 && searchRes[0].videoId) {
+        videoId = searchRes[0].videoId;
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  if (videoId) {
+    // Try streaming through @distube/ytdl-core
+    try {
+      const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+      const audioStream = ytdl(videoUrl, {
+        filter: 'audioonly',
+        quality: 'highestaudio',
+        highWaterMark: 1 << 24
+      });
+
+      res.setHeader('Content-Type', 'audio/webm');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      audioStream.on('error', (err: any) => {
+        console.warn('ytdl audio stream warning:', err?.message || err);
+      });
+
+      audioStream.pipe(res);
+      return;
+    } catch (ytErr) {
+      console.warn('ytdl streaming attempt note:', ytErr);
+    }
+
+    // Try streaming through play-dl
+    try {
+      const playStream = await play.stream(`https://www.youtube.com/watch?v=${videoId}`);
+      if (playStream && playStream.stream) {
+        res.setHeader('Content-Type', playStream.type || 'audio/webm');
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        playStream.stream.pipe(res);
+        return;
+      }
+    } catch (playErr) {
+      console.warn('play-dl streaming attempt note:', playErr);
+    }
+  }
+
+  // 2. Primary fallback: Find authentic audio source via Deezer/iTunes/studio
   try {
     const audioSource = await findRealAudioSource(title, artist, durationSec, isrc);
     if (audioSource && audioSource.url) {
