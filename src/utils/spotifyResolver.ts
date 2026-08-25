@@ -5,14 +5,14 @@ export function extractSpotifyPlaylistId(input: string): string | null {
   if (!input) return null;
   const trimmed = input.trim();
   
-  // Format 1: https://open.spotify.com/(playlist|album|track|artist)/37i9dQZF1DXcBWIGoYBM5M?si=...
-  const urlMatch = trimmed.match(/(?:spotify\.com\/(?:intl-[a-z]{2}\/)?|spotify:)(?:playlist|album|track|artist)[/:]([a-zA-Z0-9]{22})/);
+  // Format 1: open.spotify.com/(intl-.../)?(playlist|album|track|artist)/{id} or user/.../playlist/{id}
+  const urlMatch = trimmed.match(/(?:spotify\.com\/(?:intl-[a-zA-Z0-9-]+\/)?(?:user\/[^/]+\/)?|spotify\.com\/embed\/|spotify:)(?:playlist|album|track|artist)[/:]([a-zA-Z0-9]{15,35})/i);
   if (urlMatch && urlMatch[1]) {
     return urlMatch[1];
   }
   
-  // Format 2: raw 22-char alphanumeric ID
-  if (/^[a-zA-Z0-9]{22}$/.test(trimmed)) {
+  // Format 2: raw 15-35 char alphanumeric ID
+  if (/^[a-zA-Z0-9]{15,35}$/.test(trimmed)) {
     return trimmed;
   }
   
@@ -33,6 +33,8 @@ export async function fetchSpotifyPlaylistClient(inputUrl: string): Promise<Play
     throw new Error('Please provide a Spotify Playlist, Album, or Track URL.');
   }
 
+  let serverErrorMessage: string | null = null;
+
   // 1. First attempt to call the backend /api/spotify/resolve endpoint
   try {
     const res = await fetch('/api/spotify/resolve', {
@@ -51,6 +53,7 @@ export async function fetchSpotifyPlaylistClient(inputUrl: string): Promise<Play
     } else {
       const errData = await res.json().catch(() => ({}));
       if (errData.error) {
+        serverErrorMessage = errData.error;
         console.warn('Backend resolve returned error:', errData.error);
       }
     }
@@ -119,5 +122,9 @@ export async function fetchSpotifyPlaylistClient(inputUrl: string): Promise<Play
     }
   }
 
-  throw new Error('Could not fetch Spotify metadata. Please verify the URL is valid and public.');
+  if (serverErrorMessage) {
+    throw new Error(serverErrorMessage);
+  }
+
+  throw new Error('Could not fetch Spotify metadata. Please verify the URL is a valid public Spotify playlist, album, or track link.');
 }

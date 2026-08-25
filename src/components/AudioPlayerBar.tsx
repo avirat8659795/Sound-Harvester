@@ -26,7 +26,7 @@ interface AudioPlayerBarProps {
   track: Track | null;
   isPlaying: boolean;
   onTogglePlay: () => void;
-  onNextTrack: () => void;
+  onNextTrack: (shuffle?: boolean, stopAtEnd?: boolean) => void;
   onPrevTrack: () => void;
   onDownloadCurrent: () => void;
   forceOpenVideo?: number;
@@ -110,11 +110,11 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   const [isYtReady, setIsYtReady] = useState(false);
   const [resolvedVideoId, setResolvedVideoId] = useState<string | null>(track?.youtubeVideoId || null);
 
-  // HTML5 Fallback Audio Ref (Native browser audio element for background & lock screen playback)
+  // HTML5 Fallback Audio Ref (Native browser audio element for fallback & background playback)
   const htmlAudioRef = useRef<HTMLAudioElement | null>(null);
-  const [useHtmlAudio, setUseHtmlAudio] = useState(true);
+  const [useHtmlAudio, setUseHtmlAudio] = useState(false);
 
-  // Load YouTube Iframe API once (used on desktop or when video modal is opened)
+  // Load YouTube Iframe API once
   useEffect(() => {
     if (!window.YT) {
       const tag = document.createElement('script');
@@ -162,7 +162,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                   ytPlayerRef.current?.seekTo(0, true);
                   ytPlayerRef.current?.playVideo();
                 } else {
-                  onNextTrackRef.current();
+                  onNextTrackRef.current(isShuffleRef.current, repeatModeRef.current === 'off');
                 }
               }
             },
@@ -180,7 +180,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     }
   }, []);
 
-  // When track changes: resolve media and prepare playback
+  // When track changes: resolve exact original YouTube media and prepare playback
   useEffect(() => {
     if (!track) return;
 
@@ -192,26 +192,8 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     let isMounted = true;
 
     async function loadTrackMedia() {
-      // Build direct native audio stream URL (which powers lock screen & background play)
       const audioStreamUrl = track!.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
 
-      // On mobile or when background audio mode is on, use direct HTML5 Audio
-      if (isMobile || backgroundAudioMode) {
-        setUseHtmlAudio(true);
-        if (htmlAudioRef.current) {
-          htmlAudioRef.current.src = audioStreamUrl;
-          htmlAudioRef.current.currentTime = 0;
-          if (isPlaying) {
-            setIsBuffering(true);
-            htmlAudioRef.current.play()
-              .then(() => setIsBuffering(false))
-              .catch(() => setIsBuffering(false));
-          }
-        }
-        return;
-      }
-
-      // On desktop with background mode off, resolve YouTube video
       let vId = track?.youtubeVideoId || null;
 
       if (!vId) {
@@ -228,7 +210,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
             }
           }
         } catch (err) {
-          console.warn('Error finding video ID:', err);
+          console.warn('Error finding original video ID:', err);
         }
       }
 
@@ -269,7 +251,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [track?.id, isYtReady, backgroundAudioMode]);
+  }, [track?.id, isYtReady]);
 
   // Sync Play / Pause state with active engine
   useEffect(() => {
@@ -342,7 +324,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
       });
 
       navigator.mediaSession.setActionHandler('nexttrack', () => {
-        onNextTrackRef.current();
+        onNextTrackRef.current(isShuffleRef.current, repeatModeRef.current === 'off');
       });
 
       navigator.mediaSession.setActionHandler('seekto', (details) => {
@@ -521,7 +503,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
             htmlAudioRef.current.currentTime = 0;
             htmlAudioRef.current.play().catch(() => {});
           } else {
-            onNextTrackRef.current();
+            onNextTrackRef.current(isShuffleRef.current, repeatModeRef.current === 'off');
           }
         }}
         onPlay={() => {
@@ -634,7 +616,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
               {/* Next */}
               <button
-                onClick={onNextTrack}
+                onClick={() => onNextTrack(isShuffle, false)}
                 className="text-gray-400 hover:text-white p-2 active:scale-90 transition-transform cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
                 title="Next"
               >
@@ -726,7 +708,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
                 {/* Next Track */}
                 <button
-                  onClick={onNextTrack}
+                  onClick={() => onNextTrack(isShuffle, false)}
                   className="text-[#b3b3b3] hover:text-white transition-transform active:scale-90 cursor-pointer p-1"
                   title="Next Track"
                 >

@@ -324,7 +324,7 @@ export default function App() {
     }
   };
 
-  const handleNextTrack = () => {
+  const handleNextTrack = (shuffle: boolean = false, stopAtEnd: boolean = false) => {
     const activePlaylist = playlistRef.current;
     const activeTrack = currentPlayingTrackRef.current;
     if (!activePlaylist || activePlaylist.tracks.length === 0) return;
@@ -344,6 +344,25 @@ export default function App() {
           t.title.toLowerCase() === activeTrack.title.toLowerCase() &&
           t.artist.toLowerCase() === activeTrack.artist.toLowerCase()
       );
+    }
+
+    if (shuffle && activePlaylist.tracks.length > 1) {
+      let randIndex = Math.floor(Math.random() * activePlaylist.tracks.length);
+      if (randIndex === currentIndex) {
+        randIndex = (currentIndex + 1) % activePlaylist.tracks.length;
+      }
+      const randTrack = activePlaylist.tracks[randIndex];
+      if (randTrack) {
+        setCurrentPlayingTrack(randTrack);
+        currentPlayingTrackRef.current = randTrack;
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    if (stopAtEnd && currentIndex === activePlaylist.tracks.length - 1) {
+      setIsPlaying(false);
+      return;
     }
 
     const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % activePlaylist.tracks.length;

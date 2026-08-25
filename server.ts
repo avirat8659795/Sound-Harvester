@@ -10,7 +10,7 @@ import * as YouTubeModule from 'youtube-sr';
 const YouTube: any = (YouTubeModule as any).default || YouTubeModule;
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -26,6 +26,36 @@ let cachedSpotifyToken: { token: string; expiresAt: number } | null = null;
 async function getSpotifyAnonymousToken(): Promise<string | null> {
   if (cachedSpotifyToken && Date.now() < cachedSpotifyToken.expiresAt - 60000) {
     return cachedSpotifyToken.token;
+  }
+
+  // 0. Official Spotify API Client Credentials (if provided via environment variables)
+  const clientId = process.env.SPOTIPY_CLIENT_ID || process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIPY_CLIENT_SECRET || process.env.SPOTIFY_CLIENT_SECRET;
+  if (clientId && clientSecret) {
+    try {
+      const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+      const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${authHeader}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: 'grant_type=client_credentials',
+        signal: AbortSignal.timeout(4000)
+      });
+      if (tokenRes.ok) {
+        const tData = await tokenRes.json();
+        if (tData && tData.access_token) {
+          cachedSpotifyToken = {
+            token: tData.access_token,
+            expiresAt: Date.now() + ((tData.expires_in || 3600) * 1000)
+          };
+          return tData.access_token;
+        }
+      }
+    } catch (e) {
+      console.warn('Spotify official client credentials error:', e);
+    }
   }
 
   // 1. Direct Web Player Access Token
@@ -152,8 +182,8 @@ function parseSpotifyUrl(input: string): { type: 'playlist' | 'album' | 'track' 
   if (!input) return null;
   const trimmed = input.trim();
 
-  // Match https://open.spotify.com/(intl-[a-z]{2,3}(?:-[a-z]{2,3})?/)?(playlist|album|track|artist)/{id}
-  const match = trimmed.match(/(?:spotify\.com\/(?:intl-[a-zA-Z0-9-]+\/)?|spotify\.com\/embed\/|spotify:)(playlist|album|track|artist)[/:]([a-zA-Z0-9]{22})/i);
+  // Match https://open.spotify.com/(intl-.../)?(user/.../)?(playlist|album|track|artist)/{id}
+  const match = trimmed.match(/(?:spotify\.com\/(?:intl-[a-zA-Z0-9-]+\/)?(?:user\/[^/]+\/)?|spotify\.com\/embed\/|spotify:)(playlist|album|track|artist)[/:]([a-zA-Z0-9]{15,35})/i);
   if (match) {
     return {
       type: match[1].toLowerCase() as 'playlist' | 'album' | 'track' | 'artist',
@@ -161,8 +191,8 @@ function parseSpotifyUrl(input: string): { type: 'playlist' | 'album' | 'track' 
     };
   }
 
-  // Raw 22-char ID default to playlist
-  if (/^[a-zA-Z0-9]{22}$/.test(trimmed)) {
+  // Raw 15-35 char alphanumeric ID default to playlist
+  if (/^[a-zA-Z0-9]{15,35}$/.test(trimmed)) {
     return { type: 'playlist', id: trimmed };
   }
 
@@ -1327,16 +1357,52 @@ app.get('/api/youtube/find', async (req: Request, res: Response) => {
   try {
     const cleanTitle = title.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').trim();
     const cleanArtist = artist.split(',')[0].trim();
-    const searchQuery = `${cleanArtist} ${cleanTitle} official audio`;
+    const queries = [
+      `${cleanArtist} - ${cleanTitle} (Official Audio)`,
+      `${cleanArtist} ${cleanTitle} official audio`,
+      `${cleanArtist} ${cleanTitle} official music video`,
+      `${cleanArtist} ${cleanTitle}`
+    ];
 
-    const results = await searchYouTubeSafely(searchQuery, 4);
-    if (results && results.length > 0) {
-      const top = results[0];
+    let bestVideo: YouTubeVideoItem | null = null;
+
+    for (const q of queries) {
+      try {
+        const results = await searchYouTubeSafely(q, 6);
+        if (results && results.length > 0) {
+          for (const v of results) {
+            const vTitle = (v.title || '').toLowerCase();
+            const lowerTitle = title.toLowerCase();
+
+            // Discard banned keywords (covers, slowed, reverbs, reaction, karaoke, etc.)
+            const isBanned = BANNED_COVER_KEYWORDS.some(kw => !lowerTitle.includes(kw) && vTitle.includes(kw));
+            if (isBanned) continue;
+
+            // Extra points for Official / VEVO / Topic / Official Audio
+            const isOfficial = /official (audio|video|music video)|vevo| - topic/i.test(v.title + ' ' + (v.channelTitle || ''));
+            if (isOfficial) {
+              bestVideo = v;
+              break;
+            }
+
+            if (!bestVideo) {
+              bestVideo = v;
+            }
+          }
+
+          if (bestVideo) break;
+        }
+      } catch {
+        // continue to next query
+      }
+    }
+
+    if (bestVideo) {
       const resultObj = {
-        videoId: top.videoId,
-        title: top.title || `${artist} - ${title}`,
-        durationSec: top.durationSec || 180,
-        durationFormatted: top.durationFormatted || '3:00'
+        videoId: bestVideo.videoId,
+        title: bestVideo.title || `${artist} - ${title}`,
+        durationSec: bestVideo.durationSec || 180,
+        durationFormatted: bestVideo.durationFormatted || '3:00'
       };
       youtubeVideoCache.set(queryKey, resultObj);
       return res.json(resultObj);
