@@ -424,7 +424,16 @@ async function fetchExactOriginalStudioAudio(
         const isBanned = BANNED_COVER_KEYWORDS.some(kw => cTitle.includes(kw));
         if (isBanned) continue;
 
-        if ((cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist)) && (cTitle.includes(targetTitleClean) || targetTitleClean.includes(cTitle))) {
+        const artistMatch = cArtist === targetArtistClean || cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist);
+        const titleMatch = cTitle === targetTitleClean || cTitle.includes(targetTitleClean) || targetTitleClean.includes(cTitle);
+        if (!artistMatch || !titleMatch || cArtist.length < 3 || cTitle.length < 2) continue;
+
+        if (spotifyDurationSec > 30 && c.more_info?.duration) {
+          const diff = Math.abs(parseInt(c.more_info.duration, 10) - spotifyDurationSec);
+          if (diff > 35) continue;
+        }
+
+        if (artistMatch && titleMatch) {
           const enc = c.more_info?.encrypted_media_url;
           if (enc) {
             const dec = decryptJioSaavnMediaUrl(enc);
@@ -565,27 +574,22 @@ async function findRealAudioSource(
         return { item: c, score: -9999, cDuration };
       }
 
-      // Artist match
-      if (cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist)) {
-        score += 60;
-      } else {
-        const firstWord = targetArtistClean.split(' ')[0];
-        if (firstWord.length > 2 && cArtist.includes(firstWord)) score += 30;
+      // STRICT Artist match (MUST match real artist)
+      const artistMatch = cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist);
+      if (!artistMatch) {
+        return { item: c, score: -9999, cDuration };
       }
+      score += 60;
 
-      // Title match
+      // STRICT Title match
+      const titleMatch = cTitle === targetTitleClean || cTitle.includes(targetTitleClean) || targetTitleClean.includes(cTitle);
+      if (!titleMatch) {
+        return { item: c, score: -9999, cDuration };
+      }
       if (cTitle === targetTitleClean) {
         score += 50;
-      } else if (cTitle.startsWith(targetTitleClean)) {
-        score += 35;
-      } else if (targetWords.length > 0 && targetWords.every((w: string) => cTitle.includes(w))) {
-        score += 40;
       } else {
-        let matchedWords = 0;
-        for (const w of targetWords) {
-          if (cTitle.includes(w)) matchedWords++;
-        }
-        score += (matchedWords / Math.max(1, targetWords.length)) * 25;
+        score += 35;
       }
 
       // Duration matching
@@ -603,7 +607,7 @@ async function findRealAudioSource(
     });
 
     // Only accept items with strong positive original match
-    const validMatches = scored.filter(s => s.score >= 50);
+    const validMatches = scored.filter(s => s.score >= 120);
     validMatches.sort((a, b) => b.score - a.score);
 
     for (const s of validMatches) {
@@ -637,9 +641,9 @@ async function findRealAudioSource(
       const data = await deezerRes.json();
       if (data.data && data.data.length > 0) {
         for (const item of data.data) {
-          const cTitle = cleanStringForMatch(item.title);
+          const cTitle = cleanStringForMatch(item.title || '');
           const cArtist = cleanStringForMatch(item.artist?.name || '');
-          if (item.preview && (cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist) || cTitle.includes(targetTitleClean))) {
+          if (item.preview && (cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist)) && (cTitle.includes(targetTitleClean) || targetTitleClean.includes(cTitle))) {
             const result: AudioSourceResult = {
               url: item.preview,
               mimeType: 'audio/mpeg',
@@ -668,7 +672,9 @@ async function findRealAudioSource(
       const data = await itunesRes.json();
       if (data.results && data.results.length > 0) {
         for (const item of data.results) {
-          if (item.previewUrl) {
+          const cTitle = cleanStringForMatch(item.trackName || '');
+          const cArtist = cleanStringForMatch(item.artistName || '');
+          if (item.previewUrl && (cArtist.includes(targetArtistClean) || targetArtistClean.includes(cArtist)) && (cTitle.includes(targetTitleClean) || targetTitleClean.includes(cTitle))) {
             const result: AudioSourceResult = {
               url: item.previewUrl,
               mimeType: 'audio/mp4',

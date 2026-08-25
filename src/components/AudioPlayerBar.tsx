@@ -216,19 +216,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
       if (!isMounted) return;
 
-      if (isMobile) {
-        // On mobile & standalone PWA, always prioritize native HTML5 audio stream for background and lock-screen controls
-        setUseHtmlAudio(true);
-        if (vId) setResolvedVideoId(vId);
-        if (htmlAudioRef.current) {
-          htmlAudioRef.current.src = audioStreamUrl;
-          htmlAudioRef.current.currentTime = 0;
-          if (isPlaying) {
-            setIsBuffering(true);
-            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
-          }
-        }
-      } else if (vId) {
+      if (vId) {
         setResolvedVideoId(vId);
         setUseHtmlAudio(false);
 
@@ -246,7 +234,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           }
         }
       } else {
-        // Fallback to HTML5 audio stream
+        // Fallback to HTML5 audio stream only if no video ID found
         setUseHtmlAudio(true);
         if (htmlAudioRef.current) {
           htmlAudioRef.current.src = audioStreamUrl;
@@ -264,7 +252,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [track?.id, isYtReady, isMobile]);
+  }, [track?.id, isYtReady]);
 
   // Sync Play / Pause state with active engine
   useEffect(() => {
@@ -518,10 +506,14 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
 
   return (
     <>
-      {/* Hidden YouTube Iframe Player Container */}
+      {/* YouTube Iframe Player Container (Kept in-viewport so mobile and desktop playback stays active) */}
       <div
-        className={`fixed ${isVideoModalOpen ? 'bottom-24 right-6 z-50 shadow-2xl rounded-2xl overflow-hidden border border-[#333]' : 'opacity-0 pointer-events-none -top-[9999px] -left-[9999px]'}`}
-        style={isVideoModalOpen ? { width: '380px', height: '215px' } : undefined}
+        className={
+          isVideoModalOpen
+            ? 'fixed bottom-24 right-6 z-50 shadow-2xl rounded-2xl overflow-hidden border border-[#333]'
+            : 'fixed bottom-0 right-0 w-2 h-2 opacity-[0.01] pointer-events-none z-[-1] overflow-hidden'
+        }
+        style={isVideoModalOpen ? { width: '380px', height: '215px' } : { width: '2px', height: '2px' }}
       >
         <div id="soundharvest-yt-player" className="w-full h-full" />
       </div>
