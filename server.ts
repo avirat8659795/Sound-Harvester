@@ -1602,7 +1602,22 @@ app.get('/api/audio/stream', async (req: Request, res: Response) => {
     return res.status(400).send('Missing title parameter');
   }
 
-  // 1. Primary: Fetch authentic original master audio stream via Deezer/iTunes/Studio catalogue (<150ms)
+  // 1. Primary: Fetch full-length authentic original studio audio buffer (YouTube/JioSaavn) and stream it directly
+  try {
+    const originalRes = await fetchExactOriginalStudioAudio(title, artist, durationSec);
+    if (originalRes && originalRes.buffer && originalRes.buffer.length > 200000) {
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Length', originalRes.buffer.length);
+      return res.send(originalRes.buffer);
+    }
+  } catch (originalError) {
+    console.warn('Original studio audio stream error:', originalError);
+  }
+
+  // 2. Fallback: Fetch authentic original master audio stream via Deezer/iTunes/Studio catalogue
   try {
     const audioSource = await findRealAudioSource(title, artist, durationSec, isrc);
     if (audioSource && audioSource.url) {

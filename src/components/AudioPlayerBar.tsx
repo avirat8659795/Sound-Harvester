@@ -215,18 +215,44 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
       }
 
       if (isMobile) {
-        // On mobile & standalone PWA: Route through native HTML5 audio stream for continuous background playback and Android / Redmi notification shade controls
         setUseHtmlAudio(true);
         if (vId) setResolvedVideoId(vId);
 
         const streamUrl = track!.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
 
         if (htmlAudioRef.current) {
+          htmlAudioRef.current.pause();
+          htmlAudioRef.current.removeAttribute('src');
+          htmlAudioRef.current.load();
           htmlAudioRef.current.src = streamUrl;
-          htmlAudioRef.current.currentTime = 0;
-          if (isPlaying) {
-            setIsBuffering(true);
-            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
+
+          const onLoadedMetadata = () => {
+            htmlAudioRef.current!.currentTime = 0;
+            if (isPlaying) {
+              setIsBuffering(true);
+              htmlAudioRef.current!.play().then(() => {
+                if (isMounted) setIsBuffering(false);
+              }).catch((err) => {
+                console.warn('Mobile audio play error:', err);
+                if (isMounted) setIsBuffering(false);
+              });
+            }
+            htmlAudioRef.current!.removeEventListener('loadedmetadata', onLoadedMetadata);
+          };
+
+          htmlAudioRef.current.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+
+          if (htmlAudioRef.current.readyState >= 1) {
+            htmlAudioRef.current.currentTime = 0;
+            if (isPlaying) {
+              setIsBuffering(true);
+              htmlAudioRef.current.play().then(() => {
+                if (isMounted) setIsBuffering(false);
+              }).catch((err) => {
+                console.warn('Mobile audio play error:', err);
+                if (isMounted) setIsBuffering(false);
+              });
+            }
           }
         }
       } else if (vId) {
@@ -247,15 +273,41 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
           }
         }
       } else {
-        // Fallback to HTML5 audio stream
         setUseHtmlAudio(true);
         const streamUrl = track!.previewAudioUrl || `/api/audio/stream?title=${encodeURIComponent(track!.title)}&artist=${encodeURIComponent(track!.artist)}&duration=${initialDur}&isrc=${encodeURIComponent(track!.isrc || '')}`;
         if (htmlAudioRef.current) {
+          htmlAudioRef.current.pause();
+          htmlAudioRef.current.removeAttribute('src');
+          htmlAudioRef.current.load();
           htmlAudioRef.current.src = streamUrl;
-          htmlAudioRef.current.currentTime = 0;
-          if (isPlaying) {
-            setIsBuffering(true);
-            htmlAudioRef.current.play().then(() => setIsBuffering(false)).catch(() => setIsBuffering(false));
+
+          const onLoadedMetadata = () => {
+            htmlAudioRef.current!.currentTime = 0;
+            if (isPlaying) {
+              setIsBuffering(true);
+              htmlAudioRef.current!.play().then(() => {
+                if (isMounted) setIsBuffering(false);
+              }).catch((err) => {
+                console.warn('HTML5 audio play error:', err);
+                if (isMounted) setIsBuffering(false);
+              });
+            }
+            htmlAudioRef.current!.removeEventListener('loadedmetadata', onLoadedMetadata);
+          };
+
+          htmlAudioRef.current.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+
+          if (htmlAudioRef.current.readyState >= 1) {
+            htmlAudioRef.current.currentTime = 0;
+            if (isPlaying) {
+              setIsBuffering(true);
+              htmlAudioRef.current.play().then(() => {
+                if (isMounted) setIsBuffering(false);
+              }).catch((err) => {
+                console.warn('HTML5 audio play error:', err);
+                if (isMounted) setIsBuffering(false);
+              });
+            }
           }
         }
       }
@@ -393,6 +445,18 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
       console.debug('MediaSession registration note:', err);
     }
   }, [track?.id, isPlaying]);
+
+  // Keep audio playing when app goes to background on mobile / PWA
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isPlayingRef.current && htmlAudioRef.current && htmlAudioRef.current.paused) {
+        htmlAudioRef.current.play().catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // Timer loop: Track live playback position and sync lock-screen scrubber
   useEffect(() => {
@@ -569,6 +633,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
         ref={htmlAudioRef}
         preload="auto"
         playsInline
+        crossOrigin="anonymous"
         onTimeUpdate={() => {
           if (htmlAudioRef.current && useHtmlAudio) {
             const current = htmlAudioRef.current.currentTime || 0;

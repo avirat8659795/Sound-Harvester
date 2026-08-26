@@ -6,6 +6,7 @@
   "scope": "/",
   "id": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait-primary",
   "background_color": "#121212",
   "theme_color": "#121212",
@@ -42,6 +43,6 @@
       "url": "/",
       "description": "Search for music or paste Spotify playlist"
     }
-  ]
+  ],
+  "prefer_related_applications": false
 }
-
