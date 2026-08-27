@@ -1,0 +1,4 @@
+ Proxy API endpoints to your deployed Node.js backend (e.g. Render / Railway)
+/api/*  https://sound-harvester.onrender.com/api/:splat  200
+SPA client-side fallback for all pages
+/*      /index.html                                          200
